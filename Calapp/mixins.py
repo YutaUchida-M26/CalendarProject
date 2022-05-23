@@ -101,3 +101,31 @@ class WeekCalendarMixin(BaseCalendarMixin):
             'week_last': last,
         }
         return calendar_data
+
+class WeekWithScheduleMixin(WeekCalendarMixin):
+    """スケジュール付きの、週間カレンダーを提供するMixin"""
+
+    def get_week_schedules(self, start, end, days):
+        """それぞれの日とスケジュールを返す"""
+        lookup = {
+            # '例えば、date__range: (1日, 31日)'を動的に作る
+            '{}__range'.format(self.date_field): (start, end)
+        }
+        # 例えば、Schedule.objects.filter(date__range=(1日, 31日)) になる
+        queryset = self.model.objects.filter(**lookup)
+
+        # {1日のdatetime: 1日のスケジュール全て, 2日のdatetime: 2日の全て...}のような辞書を作る
+        day_schedules = {day: [] for day in days}
+        for schedule in queryset:
+            schedule_date = getattr(schedule, self.date_field)
+            day_schedules[schedule_date].append(schedule)
+        return day_schedules
+
+    def get_week_calendar(self):
+        calendar_context = super().get_week_calendar()
+        calendar_context['week_day_schedules'] = self.get_week_schedules(
+            calendar_context['week_first'],
+            calendar_context['week_last'],
+            calendar_context['week_days']
+        )
+        return calendar_context
